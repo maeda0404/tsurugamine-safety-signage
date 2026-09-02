@@ -23,11 +23,36 @@
     if (w.minTemperature <= C.thresholds.lowTemperature) scheduled.push('lowTemperature');
     if (warn.dry) scheduled.push('dry');
     if (w.rainProbability >= C.thresholds.rainProbability) scheduled.push('rainProbability');
-    const now=new Date(); const sunset=new Date(w.sunset); const delta=sunset-now;
-    if (delta <= 30*60*1000 && delta >= -10*60*1000) scheduled.push('sunset');
-    const minute=Number(jstParts(now).minute);
-    return immediate.length ? immediate : (minute>=C.scheduledStartMinute && minute<C.scheduledEndMinute ? scheduled : []);
-  }
+    const now = new Date();
+const sunset = new Date(w.sunset);
+const delta = sunset.getTime() - now.getTime();
+
+/*
+ * 日没30分前から日没10分後までは即時表示します。
+ * 毎時00分から10分という制限は適用しません。
+ */
+if (
+  Number.isFinite(delta) &&
+  delta <= 30 * 60 * 1000 &&
+  delta >= -10 * 60 * 1000
+) {
+  immediate.push('sunset');
+}
+
+const minute = Number(jstParts(now).minute);
+
+if (immediate.length > 0) {
+  return immediate;
+}
+
+if (
+  minute >= C.scheduledStartMinute &&
+  minute < C.scheduledEndMinute
+) {
+  return scheduled;
+}
+
+return [];
   function render() {
     if (!data) return;
     const w=data.weather;
