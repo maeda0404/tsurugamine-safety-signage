@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="鶴ヶ峰周辺の公開気象情報を表示する安全サイネージです。">
+  <title>鶴ヶ峰 安全・気象情報</title>
+  <link rel="stylesheet" href="./style.css?v=1">
+</head>
+<body>
+  <main id="signage" class="signage">
+    <header class="header">
+      <h1>鶴ヶ峰 安全・気象情報</h1>
+      <div class="header-right"><time id="clock">--/--/-- --:--:--</time><span id="network">● 取得中</span></div>
+    </header>
+    <div id="stale" class="stale" hidden>最新情報を取得できていません</div>
+    <section class="hero">
+      <div>
+        <p class="eyebrow">現在の気象状況</p>
+        <div class="temperature"><strong id="temperature">--</strong><span>℃</span></div>
+        <p id="weatherLabel" class="weather-label">情報取得中</p>
+      </div>
+      <div id="statusCard" class="status-card normal">
+        <span>総合判定</span><strong id="statusText">確認中</strong>
+      </div>
+    </section>
+    <section class="metrics">
+      <article><span>降水確率</span><strong id="rainProbability">--%</strong></article>
+      <article><span>現在の降水量</span><strong id="precipitation">-- mm/h</strong></article>
+      <article><span>風速</span><strong id="windSpeed">-- m/s</strong></article>
+      <article><span>最低気温</span><strong id="minTemperature">--℃</strong></article>
+      <article><span>日没時刻</span><strong id="sunsetTime">--:--</strong></article>
+    </section>
+    <section class="alerts-panel">
+      <div><h2>発表・判定中の情報</h2><p id="activeAlerts">該当情報を確認しています</p></div>
+      <div><h2>表示ルール</h2><p>警報級は即時表示、注意情報は毎時00分から10分間表示</p></div>
+    </section>
+    <footer>
+      <span>出典：気象庁・Open-Meteoの公開情報を加工して表示</span>
+      <span>データ生成：<b id="generatedAt">--</b></span>
+      <p>本表示は補助情報です。現場責任者の指示、会社の安全基準、自治体・気象庁の公式情報を優先してください。</p>
+    </footer>
+  </main>
+  <section id="alertOverlay" class="overlay" hidden aria-live="assertive">
+    <img id="alertImage" alt="安全注意喚起">
+    <div class="overlay-info"><strong id="overlayTitle"></strong><span id="overlayCounter"></span></div>
+  </section>
+  <script src="./config.js?v=1"></script>
+  <script src="./app.js?v=1"></script>
+</body>
+</html>
