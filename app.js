@@ -163,10 +163,10 @@
     );
 
     $('statusCard').className = hasDanger
-      ? 'danger'
+      ? 'status-card danger'
       : activeRules.length
-        ? 'caution'
-        : '';
+        ? 'status-card caution'
+        : 'status-card normal';
 
     $('statusText').textContent = activeRules.length
       ? '注意情報あり'
