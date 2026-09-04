@@ -250,99 +250,114 @@
     };
   }
 
-  function getActiveRules() {
+    /**
+   * 現在該当しているすべての注意情報を返す
+   *
+   * この結果は通常画面に常時表示します。
+   */
+  function getCurrentRules() {
     if (!data) return [];
 
     const weather = data.weather;
     const warnings = data.warnings || {};
-    const immediate = [];
-    const scheduled = [];
+    const rules = [];
 
-    // 警報級は時刻に関係なく即時表示
     if (warnings.landslide) {
-      immediate.push('landslide');
+      rules.push('landslide');
     }
 
     if (
       warnings.heavyRain ||
-      weather.precipitation >=
-        C.thresholds.heavyRainPerHour
+      weather.precipitation >= C.thresholds.heavyRainPerHour
     ) {
-      immediate.push('heavyRain');
+      rules.push('heavyRain');
     }
 
     if (warnings.thunder) {
-      immediate.push('thunder');
+      rules.push('thunder');
     }
 
-    // 注意情報は毎時00分から10分間に表示
-    if (
-      weather.windSpeed >=
-      C.thresholds.strongWind
-    ) {
-      scheduled.push('strongWind');
+    if (weather.windSpeed >= C.thresholds.strongWind) {
+      rules.push('strongWind');
     }
 
-    if (
-      weather.minTemperature <=
-      C.thresholds.lowTemperature
-    ) {
-      scheduled.push('lowTemperature');
+    if (weather.minTemperature <= C.thresholds.lowTemperature) {
+      rules.push('lowTemperature');
     }
 
     if (warnings.dry) {
-      scheduled.push('dry');
+      rules.push('dry');
     }
 
     if (
-      weather.rainProbability >=
-      C.thresholds.rainProbability
+      weather.rainProbability >= C.thresholds.rainProbability
     ) {
-      scheduled.push('rainProbability');
+      rules.push('rainProbability');
     }
 
-    /*
-     * 日没30分前から日没10分後は、
-     * 毎時表示枠に関係なく即時表示
-     */
     const now = new Date();
     const sunset = new Date(weather.sunset);
-
     const millisecondsUntilSunset =
       sunset.getTime() - now.getTime();
 
     if (
       Number.isFinite(millisecondsUntilSunset) &&
-      millisecondsUntilSunset <=
-        30 * 60 * 1000 &&
-      millisecondsUntilSunset >=
-        -10 * 60 * 1000
+      millisecondsUntilSunset <= 30 * 60 * 1000 &&
+      millisecondsUntilSunset >= -10 * 60 * 1000
     ) {
-      immediate.push('sunset');
+      rules.push('sunset');
     }
 
-    if (immediate.length > 0) {
-      return immediate;
+    return rules;
+  }
+
+  /**
+   * 全画面画像として表示する注意情報を返す
+   *
+   * 警報級と日没：
+   *   時刻に関係なく即時表示
+   *
+   * そのほかの注意情報：
+   *   毎時00分から10分間だけ表示
+   */
+  function getActiveRules() {
+    const currentRules = getCurrentRules();
+
+    if (currentRules.length === 0) {
+      return [];
     }
 
-    const minute =
-      Number(getJapanTimeParts(now).minute);
+    const immediateRules = currentRules.filter((key) =>
+      [
+        'landslide',
+        'heavyRain',
+        'thunder',
+        'sunset'
+      ].includes(key)
+    );
+
+    if (immediateRules.length > 0) {
+      return immediateRules;
+    }
+
+    const minute = Number(
+      getJapanTimeParts(new Date()).minute
+    );
 
     if (
       minute >= C.scheduledStartMinute &&
       minute < C.scheduledEndMinute
     ) {
-      return scheduled;
+      return currentRules;
     }
 
     return [];
   }
-
   function render() {
     if (!data) return;
 
     const weather = data.weather;
-    const activeRules = getActiveRules();
+    const activeRules = getCurrentRules();
 
     $('temperature').textContent =
       Number(weather.temperature).toFixed(1);
