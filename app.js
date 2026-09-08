@@ -37,6 +37,10 @@
       './images/landslide.png',
       '土砂災害警戒'
     ],
+    storm: [
+      './images/storm.png',
+      '暴風警報'
+    ],
     sunset: [
       './images/sunset.png',
       '日没注意'
@@ -273,11 +277,34 @@
       rules.push('heavyRain');
     }
 
+    /*
+     * 暴風警報
+     *
+     * 警報フラグ、または風速が暴風しきい値以上で発火。
+     * 上位の暴風警報が出た場合、下位の強風注意報は
+     * 表示しない（下記 strongWind の条件参照）。
+     */
+    const stormActive =
+      warnings.storm ||
+      weather.windSpeed >= C.thresholds.stormWind;
+
+    if (stormActive) {
+      rules.push('storm');
+    }
+
     if (warnings.thunder) {
       rules.push('thunder');
     }
 
-    if (weather.windSpeed >= C.thresholds.strongWind) {
+    /*
+     * 強風注意報
+     *
+     * 暴風警報が出ていないときだけ表示する。
+     */
+    if (
+      !stormActive &&
+      weather.windSpeed >= C.thresholds.strongWind
+    ) {
       rules.push('strongWind');
     }
 
@@ -331,6 +358,7 @@
       [
         'landslide',
         'heavyRain',
+        'storm',
         'thunder',
         'sunset'
       ].includes(key)
@@ -409,6 +437,7 @@
         [
           'landslide',
           'heavyRain',
+          'storm',
           'thunder'
         ].includes(key)
       );
