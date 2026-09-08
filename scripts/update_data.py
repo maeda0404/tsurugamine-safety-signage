@@ -1,30 +1,171 @@
 #!/usr/bin/env python3
-import json, urllib.request
+"""
+鶴ヶ峰（横浜市旭区）安全サイネージ用データ生成スクリプト
+
+- 気象データ: Open-Meteo
+- 警報・注意報: 気象庁 140000.json（神奈川県）
+
+【勝どき版からの主な違い】
+1. 座標を横浜市旭区に、JMA URL を神奈川県(140000)に変更
+2. 対象エリアを旭区(1420100)に限定
+3. 内陸の丘陵地のため landslide（土砂災害）を有効化 ← 本命
+   逆に wave / stormSurge（海沿い用）は対象外
+4. 暴風 storm を追加
+
+【重要な修正（勝どきと同じ）】
+旧版は JMA JSON を「文字列に '土砂' が含まれるか」で判定していたが、
+警報 JSON は数字コードしか持たず日本語名を含まないため、実際には
+土砂災害を含む JMA 由来の警報が一切検知できていなかった。
+本版はコード番号で判定する。
+"""
+
+import json
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-LAT=35.474917; LON=139.549250
-OUT=Path(__file__).resolve().parents[1]/'data'/'current.json'
-WEATHER=('https://api.open-meteo.com/v1/forecast?latitude=35.474917&longitude=139.549250'
-'&current=temperature_2m,precipitation,weather_code,wind_speed_10m'
-'&hourly=precipitation_probability&daily=temperature_2m_min,sunset&timezone=Asia%2FTokyo&forecast_days=2')
-JMA='https://www.jma.go.jp/bosai/warning/data/r8/140010.json'
-def get_json(url):
-    req=urllib.request.Request(url,headers={'User-Agent':'tsurugamine-safety-signage/1.0','Accept':'application/json'})
-    with urllib.request.urlopen(req,timeout=20) as r:return json.load(r)
-def text_blob(obj):
-    return json.dumps(obj,ensure_ascii=False)
+
+LAT = 35.474917
+LON = 139.549250
+OUT = Path(__file__).resolve().parents[1] / 'data' / 'current.json'
+
+# 横浜市旭区の市区町村コード（見つからなければ 横浜市→神奈川東部 にフォールバック）
+TARGET_AREA_CODES = ('1420100', '1410000', '140010')
+
+WEATHER = (
+    'https://api.open-meteo.com/v1/forecast'
+    f'?latitude={LAT}&longitude={LON}'
+    '&current=temperature_2m,precipitation,weather_code,wind_speed_10m'
+    '&hourly=precipitation_probability'
+    '&daily=temperature_2m_min,sunset'
+    '&timezone=Asia%2FTokyo&forecast_days=2'
+)
+# 警報・注意報JSONは「都道府県コード 140000（神奈川県）」を使う。
+# 140010（東部）や r8/140010 は天気予報用/存在しないコードで 404 になる。
+JMA = 'https://www.jma.go.jp/bosai/warning/data/warning/140000.json'
+
+# 警報・注意報コード → サイネージのフラグ名
+#
+# 令和8年体系（2026-05-29〜）のコード:
+#   大雨   : 03=警報(L3) / 43=危険警報(L4) / 53=特別警報(L5)
+#   土砂   : 13=注意報(L2) / 33=警報(L3) / 63=危険警報(L4) / 73=特別警報(L5)
+#            ※土砂は「大雨(土砂災害)」として大雨コードと連動するが、
+#              サイネージでは landslide として独立表示する
+#   暴風   : 05=警報 / 35=特別警報
+#   雷/乾燥: 14=雷注意報 / 21=乾燥注意報
+#
+# ※コードは地域・体系差で揺れる可能性があるため、土砂・大雨は
+#   「代表コード群」で広めに拾い、取りこぼしを防ぐ。
+CODE_TO_FLAG = {
+    # 暴風
+    '05': 'storm',
+    '35': 'storm',
+    # 大雨（土砂を除く純粋な大雨・浸水）
+    '03': 'heavyRain',
+    '53': 'heavyRain',
+    # 土砂災害（鶴ヶ峰の本命）
+    '13': 'landslide',
+    '33': 'landslide',
+    '63': 'landslide',
+    '73': 'landslide',
+    # 雷・乾燥
+    '14': 'thunder',
+    '21': 'dry',
+}
+
+# app.js が参照するフラグ一式（鶴ヶ峰は内陸なので wave/stormSurge は持たない）
+DEFAULT_WARNINGS = {
+    'dry': False,
+    'thunder': False,
+    'heavyRain': False,
+    'landslide': False,
+    'storm': False,
+}
+
+# 「無効」とみなす status（この警報コードは採用しない）
+INACTIVE_STATUS = ('解除', '発表警報・注意報はなし', '')
+
+
+def get(url):
+    req = urllib.request.Request(
+        url,
+        headers={
+            'User-Agent': 'tsurugamine-safety-signage/2.0',
+            'Accept': 'application/json',
+        },
+    )
+    with urllib.request.urlopen(req, timeout=20) as res:
+        return json.load(res)
+
+
+def collect_active_codes(jma_json):
+    """対象エリアの、解除されていない警報コードの集合を返す。"""
+    for target in TARGET_AREA_CODES:
+        for area_type in jma_json.get('areaTypes', []):
+            for area in area_type.get('areas', []):
+                if area.get('code') != target:
+                    continue
+                codes = set()
+                for w in area.get('warnings', []):
+                    code = w.get('code')
+                    status = w.get('status', '')
+                    if code and status not in INACTIVE_STATUS:
+                        codes.add(code)
+                return codes  # 対象エリアが見つかった時点で確定
+    return set()
+
+
+def parse_warnings(jma_json):
+    warnings = dict(DEFAULT_WARNINGS)
+    for code in collect_active_codes(jma_json):
+        flag = CODE_TO_FLAG.get(code)
+        if flag:
+            warnings[flag] = True
+    return warnings
+
+
 def main():
-    weather=get_json(WEATHER); current=weather['current']; hourly=weather['hourly']; daily=weather['daily']
-    current_time=current['time']; nearest=hourly['time'].index(current_time[:13]+':00') if current_time[:13]+':00' in hourly['time'] else 0
-    warnings={'dry':False,'thunder':False,'heavyRain':False,'landslide':False}
-    warning_error=None
+    w = get(WEATHER)
+    c = w['current']
+    h = w['hourly']
+    dy = w['daily']
+    t = c['time']
+
+    key = t[:13] + ':00'
+    i = h['time'].index(key) if key in h['time'] else 0
+
+    warnings = dict(DEFAULT_WARNINGS)
+    err = None
     try:
-        jma=get_json(JMA); blob=text_blob(jma)
-        active_words=('発表','継続','警報','注意報','危険')
-        active=any(word in blob for word in active_words) and '解除' not in blob
-        warnings={'dry':active and '乾燥' in blob,'thunder':active and '雷' in blob,'heavyRain':active and '大雨' in blob,'landslide':active and '土砂' in blob}
-    except Exception as e: warning_error=type(e).__name__
-    payload={'schemaVersion':1,'generatedAt':datetime.now(timezone.utc).isoformat().replace('+00:00','Z'),'location':{'name':'鶴ヶ峰','latitude':LAT,'longitude':LON},'weather':{'observedAt':current_time,'temperature':current['temperature_2m'],'precipitation':current['precipitation'],'weatherCode':current['weather_code'],'windSpeed':current['wind_speed_10m'],'rainProbability':hourly['precipitation_probability'][nearest] or 0,'minTemperature':daily['temperature_2m_min'][0],'sunset':daily['sunset'][0]},'warnings':warnings,'warningFetchError':warning_error}
-    OUT.parent.mkdir(parents=True,exist_ok=True); OUT.write_text(json.dumps(payload,ensure_ascii=False,separators=(',',':'))+'\n',encoding='utf-8')
-    print(f'updated {OUT}')
-if __name__=='__main__':main()
+        warnings = parse_warnings(get(JMA))
+    except Exception as e:
+        err = type(e).__name__
+        print('JMA fetch failed:', err, e)
+
+    payload = {
+        'schemaVersion': 1,
+        'generatedAt': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+        'location': {'name': '鶴ヶ峰', 'latitude': LAT, 'longitude': LON},
+        'weather': {
+            'observedAt': t,
+            'temperature': c['temperature_2m'],
+            'precipitation': c['precipitation'],
+            'weatherCode': c['weather_code'],
+            'windSpeed': c['wind_speed_10m'],
+            'rainProbability': h['precipitation_probability'][i] or 0,
+            'minTemperature': dy['temperature_2m_min'][0],
+            'sunset': dy['sunset'][0],
+        },
+        'warnings': warnings,
+        'warningFetchError': err,
+    }
+
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    OUT.write_text(
+        json.dumps(payload, ensure_ascii=False, separators=(',', ':')) + '\n',
+        encoding='utf-8',
+    )
+    print('updated', OUT, '/ warnings:', warnings, '/ error:', err)
+
+
+if __name__ == '__main__':
+    main()
