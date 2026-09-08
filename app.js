@@ -571,18 +571,19 @@
       if (
         freshness.status === 'failure'
       ) {
-        clearWeatherDisplay();
+  data = nextData;
+  render();
 
-        showNetworkFailure(
-          '最新情報を取得できていません'
-        );
+  showNetworkFailure(
+    `通信失敗：${formatDateTime(nextData.generatedAt)}時点の情報を表示中`
+  );
 
-        console.error(
-          new Error(freshness.message)
-        );
+  console.error(
+    new Error(freshness.message)
+  );
 
-        return;
-      }
+  return;
+}
 
       /*
        * 3時間未満なら取得データを保持します。
