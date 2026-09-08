@@ -11,6 +11,7 @@ window.SIGNAGE_CONFIG = Object.freeze({
     rainProbability: 60,
     lowTemperature: 5,
     strongWind: 10,
+    stormWind: 20,
     heavyRainPerHour: 10
   })
 });
