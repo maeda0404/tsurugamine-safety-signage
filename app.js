@@ -37,6 +37,10 @@
       './images/landslide.png',
       '土砂災害警戒'
     ],
+    landslideAdvisory: [
+      './images/landslide-advisory.png',
+      '土砂災害注意報'
+    ],
     storm: [
       './images/storm.png',
       '暴風警報'
@@ -54,6 +58,29 @@
       '雷注意報'
     ]
   };
+
+  /*
+   * 即時表示（時刻に関係なく全画面表示）する警報級ルール。
+   * ここに含まれないルールは「毎時00〜10分のみ」掲示となる。
+   * 土砂災害注意報(landslideAdvisory)はあえて含めず、00〜10分掲示に回す。
+   */
+  const IMMEDIATE_RULES = [
+    'landslide',
+    'heavyRain',
+    'storm',
+    'thunder',
+    'sunset'
+  ];
+
+  /*
+   * 総合判定を danger（注意情報あり・危険色）にするルール。
+   */
+  const DANGER_RULES = [
+    'landslide',
+    'heavyRain',
+    'storm',
+    'thunder'
+  ];
 
   let data = null;
   let imageIndex = 0;
@@ -266,8 +293,17 @@
     const warnings = data.warnings || {};
     const rules = [];
 
+    /*
+     * 土砂災害
+     *
+     * 警報以上(landslide)は即時・全画面。
+     * 注意報(landslideAdvisory)は00〜10分のみ掲示（IMMEDIATE_RULESに含めない）。
+     * 警報が出ている場合、注意報は表示しない。
+     */
     if (warnings.landslide) {
       rules.push('landslide');
+    } else if (warnings.landslideAdvisory) {
+      rules.push('landslideAdvisory');
     }
 
     if (
@@ -281,8 +317,7 @@
      * 暴風警報
      *
      * 警報フラグ、または風速が暴風しきい値以上で発火。
-     * 上位の暴風警報が出た場合、下位の強風注意報は
-     * 表示しない（下記 strongWind の条件参照）。
+     * 上位の暴風警報が出た場合、下位の強風注意報は表示しない。
      */
     const stormActive =
       warnings.storm ||
@@ -344,7 +379,7 @@
    * 警報級と日没：
    *   時刻に関係なく即時表示
    *
-   * そのほかの注意情報：
+   * そのほかの注意情報（土砂災害注意報を含む）：
    *   毎時00分から10分間だけ表示
    */
   function getActiveRules() {
@@ -355,13 +390,7 @@
     }
 
     const immediateRules = currentRules.filter((key) =>
-      [
-        'landslide',
-        'heavyRain',
-        'storm',
-        'thunder',
-        'sunset'
-      ].includes(key)
+      IMMEDIATE_RULES.includes(key)
     );
 
     if (immediateRules.length > 0) {
@@ -434,12 +463,7 @@
 
     const hasDanger =
       activeRules.some((key) =>
-        [
-          'landslide',
-          'heavyRain',
-          'storm',
-          'thunder'
-        ].includes(key)
+        DANGER_RULES.includes(key)
       );
 
     /*
