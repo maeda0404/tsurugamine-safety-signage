@@ -9,6 +9,8 @@
 1. 座標を横浜市旭区に、JMA URL を神奈川県(140000)に変更
 2. 対象エリアを旭区(1420100)に限定
 3. 内陸の丘陵地のため landslide（土砂災害）を有効化 ← 本命
+   - 土砂災害 警報以上(09/49/39) = landslide（即時・全画面）
+   - 土砂災害 注意報(29)          = landslideAdvisory（00〜10分掲示）
    逆に wave / stormSurge（海沿い用）は対象外
 4. 暴風 storm を追加
 
@@ -52,25 +54,25 @@ JMA = 'https://www.jma.go.jp/bosai/warning/data/warning/140000.json'
 #   雷     : 14=雷注意報
 #   乾燥   : 21=乾燥注意報
 #
-# ※土砂災害(09/49/39)は大雨(03/43/33)とは別コード。
-#   鶴ヶ峰は内陸の丘陵地のため土砂災害が本命。landslide として独立表示する。
-#   土砂注意報(29, L2)は警報級ではないため既定では含めない。
-#   注意報レベルから点灯したい場合は '29': 'landslide' を追加する。
+# ※土砂災害(09/49/39)は大雨(03/43/33)とは別コード。鶴ヶ峰の本命。
+#   土砂災害注意報(29, L2)は警報級ではないため landslideAdvisory として
+#   別フラグにし、app.js 側で「00〜10分のみ掲示」に回す。
 CODE_TO_FLAG = {
     # 暴風
-    '05': 'storm',        # 暴風警報
-    '35': 'storm',        # 暴風特別警報
+    '05': 'storm',                # 暴風警報
+    '35': 'storm',                # 暴風特別警報
     # 大雨・浸水
-    '03': 'heavyRain',    # 大雨警報(L3)
-    '43': 'heavyRain',    # 大雨危険警報(L4)
-    '33': 'heavyRain',    # 大雨特別警報(L5)
+    '03': 'heavyRain',            # 大雨警報(L3)
+    '43': 'heavyRain',            # 大雨危険警報(L4)
+    '33': 'heavyRain',            # 大雨特別警報(L5)
     # 土砂災害（鶴ヶ峰の本命）
-    '09': 'landslide',    # 土砂災害警報(L3)
-    '49': 'landslide',    # 土砂災害危険警報(L4)
-    '39': 'landslide',    # 土砂災害特別警報(L5)
+    '09': 'landslide',            # 土砂災害警報(L3)
+    '49': 'landslide',            # 土砂災害危険警報(L4)
+    '39': 'landslide',            # 土砂災害特別警報(L5)
+    '29': 'landslideAdvisory',    # 土砂災害注意報(L2)
     # 雷・乾燥
-    '14': 'thunder',      # 雷注意報
-    '21': 'dry',          # 乾燥注意報
+    '14': 'thunder',              # 雷注意報
+    '21': 'dry',                  # 乾燥注意報
 }
 
 # app.js が参照するフラグ一式（鶴ヶ峰は内陸なので wave/stormSurge は持たない）
@@ -79,6 +81,7 @@ DEFAULT_WARNINGS = {
     'thunder': False,
     'heavyRain': False,
     'landslide': False,
+    'landslideAdvisory': False,
     'storm': False,
 }
 
@@ -121,6 +124,11 @@ def parse_warnings(jma_json):
         flag = CODE_TO_FLAG.get(code)
         if flag:
             warnings[flag] = True
+
+    # 土砂災害警報以上が出ている場合、注意報フラグは下げる（重複表示防止）
+    if warnings['landslide']:
+        warnings['landslideAdvisory'] = False
+
     return warnings
 
 
