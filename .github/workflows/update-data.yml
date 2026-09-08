@@ -1,7 +1,7 @@
 name: Update safety weather data
 on:
   schedule:
-    - cron: '3,18,33,48 * * * *'
+    - cron: '3,13,23,33,43,53 * * * *'
   workflow_dispatch:
 permissions:
   contents: write
