@@ -48,6 +48,10 @@ WEATHER = (
 
 # 警報・注意報JSONは「都道府県コード 140000（神奈川県）」を使う。
 JMA = 'https://www.jma.go.jp/bosai/warning/data/warning/140000.json'
+# 予報データ（警報JSONが古い版を返す場合の雷の補助判定に使用）
+JMA_FORECAST = 'https://www.jma.go.jp/bosai/forecast/data/forecast/140000.json'
+# 予報の対象細分区域：神奈川県東部
+FORECAST_AREA_CODE = '140010'
 
 # 警報・注意報コード → サイネージのフラグ名
 #
@@ -78,7 +82,8 @@ CODE_TO_FLAG = {
 # app.js が参照するフラグ一式（鶴ヶ峰は内陸なので wave/stormSurge は持たない）
 DEFAULT_WARNINGS = {
     'dry': False,
-    'thunder': False,
+    'thunder': False,          # 正式な雷注意報（warning由来・即時表示）
+    'thunderForecast': False,  # 予報文由来の雷（補助・00〜10分表示）
     'heavyRain': False,
     'landslide': False,
     'landslideAdvisory': False,
@@ -143,6 +148,28 @@ def parse_warnings(jma_json):
     return warnings
 
 
+
+def detect_forecast_thunder(forecast_json):
+    """予報JSONの神奈川県東部(140010)の天気文に『雷』が含まれるか。
+
+    正式な雷注意報ではなく、予報文ベースの補助判定。
+    weathers 配列（直近の天気文）を対象に判定する。
+    """
+    try:
+        for block in forecast_json:
+            for ts in block.get('timeSeries', []):
+                for area in ts.get('areas', []):
+                    acode = area.get('area', {}).get('code')
+                    if acode != FORECAST_AREA_CODE:
+                        continue
+                    for w in area.get('weathers', []) or []:
+                        if '雷' in w:
+                            return True
+    except Exception:
+        return False
+    return False
+
+
 def main():
     w = get(WEATHER)
     c = w['current']
@@ -163,6 +190,15 @@ def main():
     except Exception as e:
         err = type(e).__name__
         print('JMA fetch failed:', err, e)
+
+    # 予報文ベースの雷（補助）。正式な雷注意報が出ていない時だけ有効化する。
+    try:
+        if not warnings['thunder']:
+            fc = get(JMA_FORECAST)
+            if detect_forecast_thunder(fc):
+                warnings['thunderForecast'] = True
+    except Exception as e:
+        print('forecast fetch failed:', type(e).__name__, e)
 
     payload = {
         'schemaVersion': 1,
