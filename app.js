@@ -49,7 +49,6 @@
     'landslide',
     'heavyRain',
     'storm',
-    'thunder',
     'sunset'
   ];
 
