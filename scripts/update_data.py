@@ -90,11 +90,17 @@ INACTIVE_STATUS = ('解除', '発表警報・注意報はなし', '')
 
 
 def get(url):
+    # キャッシュ回避のため、毎回変わるクエリを付与する。
+    # 気象庁のwarning JSONは中間キャッシュで古い版が返ることがあるため。
+    sep = '&' if '?' in url else '?'
+    bust = f'{sep}_={int(datetime.now(timezone.utc).timestamp())}'
     req = urllib.request.Request(
-        url,
+        url + bust,
         headers={
             'User-Agent': 'tsurugamine-safety-signage/2.0',
             'Accept': 'application/json',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
         },
     )
     with urllib.request.urlopen(req, timeout=20) as res:
@@ -137,25 +143,6 @@ def parse_warnings(jma_json):
     return warnings
 
 
-
-def collect_all(jma_json):
-    """JSON内の、解除されていない警報を持つ全エリアのコードを返す。
-    どのエリアコードに何の警報コードが入っているかを一覧化する。"""
-    out = {}
-    for area_type in jma_json.get('areaTypes', []):
-        for area in area_type.get('areas', []):
-            acode = area.get('code')
-            active = []
-            for w in area.get('warnings', []):
-                code = w.get('code')
-                status = w.get('status', '')
-                if code and status not in INACTIVE_STATUS:
-                    active.append(code)
-            if active:
-                out[acode] = active
-    return out
-
-
 def main():
     w = get(WEATHER)
     c = w['current']
@@ -167,12 +154,12 @@ def main():
     i = h['time'].index(key) if key in h['time'] else 0
 
     warnings = dict(DEFAULT_WARNINGS)
-    allAreas = {}
+    report_dt = None
     err = None
     try:
         jma = get(JMA)
+        report_dt = jma.get('reportDatetime')
         warnings = parse_warnings(jma)
-        allAreas = collect_all(jma)
     except Exception as e:
         err = type(e).__name__
         print('JMA fetch failed:', err, e)
@@ -193,7 +180,7 @@ def main():
         },
         'warnings': warnings,
         'warningFetchError': err,
-        'allActiveAreasDebug': allAreas,
+        'jmaReportDatetime': report_dt,
     }
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
