@@ -38,9 +38,13 @@
     storm: ['./images/storm.png', '暴風警報'],
     sunset: ['./images/sunset.png', '日没注意'],
     strongWind: ['./images/strong-wind.png', '強風注意'],
-    thunder: ['./images/thunder.png', '雷注意報']
+    thunder: ['./images/thunder.png', '雷注意報'],
+    // 予報文ベースの雷（正式な雷注意報ではない補助表示）
+    thunderForecast: ['./images/thunder-forecast.png', '雷予報 発表中']
   };
 
+  // 時刻に関係なく即時・全画面表示する警報級ルール。
+  // thunderForecast は予報ベースの補助表示のため、ここには含めない。
   const IMMEDIATE_RULES = [
     'landslide',
     'heavyRain',
@@ -49,6 +53,8 @@
     'sunset'
   ];
 
+  // 総合判定を「危険（赤）」にするルール。
+  // thunderForecast は正式発表ではないため含めない。
   const DANGER_RULES = [
     'landslide',
     'heavyRain',
@@ -275,7 +281,11 @@
     }
 
     if (warnings.thunder) {
+      // 正式な雷注意報（即時・全画面）
       rules.push('thunder');
+    } else if (warnings.thunderForecast) {
+      // 正式な雷注意報が無いときのみ、予報ベースの雷を補助表示（00〜10分）
+      rules.push('thunderForecast');
     }
 
     if (
