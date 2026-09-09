@@ -137,6 +137,26 @@ def parse_warnings(jma_json):
     return warnings
 
 
+
+def collect_debug(jma_json):
+    """対象エリアに実際に入っている、解除されていない全コードを地域別に返す。"""
+    result = {}
+    for area_type in jma_json.get('areaTypes', []):
+        for area in area_type.get('areas', []):
+            acode = area.get('code')
+            if acode not in TARGET_AREA_CODES:
+                continue
+            active = []
+            for w in area.get('warnings', []):
+                code = w.get('code')
+                status = w.get('status', '')
+                if code and status not in INACTIVE_STATUS:
+                    active.append(code)
+            if active:
+                result[acode] = active
+    return result
+
+
 def main():
     w = get(WEATHER)
     c = w['current']
@@ -148,9 +168,12 @@ def main():
     i = h['time'].index(key) if key in h['time'] else 0
 
     warnings = dict(DEFAULT_WARNINGS)
+    debug = {}
     err = None
     try:
-        warnings = parse_warnings(get(JMA))
+        jma = get(JMA)
+        warnings = parse_warnings(jma)
+        debug = collect_debug(jma)
     except Exception as e:
         err = type(e).__name__
         print('JMA fetch failed:', err, e)
@@ -171,6 +194,7 @@ def main():
         },
         'warnings': warnings,
         'warningFetchError': err,
+        'activeCodesDebug': debug,
     }
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
