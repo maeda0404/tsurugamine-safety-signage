@@ -29,10 +29,12 @@ LAT = 35.474917
 LON = 139.549250
 OUT = Path(__file__).resolve().parents[1] / 'data' / 'current.json'
 
-# 鶴ヶ峰は横浜市の警報・注意報を使用する。
-# 1410000：横浜市
-# 140010 ：神奈川県東部（横浜市が見つからない場合の予備）
-# ※ 1420100 は横須賀市。先頭に置くと横浜市の情報を取得できないため使用しない。
+# 鶴ヶ峰（横浜市旭区）で参照する対象エリア。
+# 気象庁の警報JSONは警報の種類ごとに格納される階層が異なるため、
+# 市町村コードと二次細分コードの両方を対象にし、コードを合算する。
+#   1410000：横浜市（土砂災害など市町村単位の情報）
+#   140010 ：神奈川県東部（雷・強風など細分区域単位の情報）
+# ※ 1420100 は横須賀市のため使用しない。
 TARGET_AREA_CODES = ('1410000', '140010')
 
 WEATHER = (
@@ -100,20 +102,25 @@ def get(url):
 
 
 def collect_active_codes(jma_json):
-    """対象エリアの、解除されていない警報コードの集合を返す。"""
+    """対象エリアすべての、解除されていない警報コードを合算して返す。
+
+    気象庁の警報JSONは、雷・強風などが二次細分区域(140010)に、
+    土砂災害などが市町村(1410000)に格納されるなど、警報の種類ごとに
+    階層が異なる。そのため最初の一致で打ち切らず、対象エリア全ての
+    コードを集合として合算する。
+    """
+    codes = set()
     for target in TARGET_AREA_CODES:
         for area_type in jma_json.get('areaTypes', []):
             for area in area_type.get('areas', []):
                 if area.get('code') != target:
                     continue
-                codes = set()
                 for w in area.get('warnings', []):
                     code = w.get('code')
                     status = w.get('status', '')
                     if code and status not in INACTIVE_STATUS:
                         codes.add(code)
-                return codes  # 対象エリアが見つかった時点で確定
-    return set()
+    return codes
 
 
 def parse_warnings(jma_json):
