@@ -44,6 +44,13 @@ PREF_CODE = '140000'
 
 # 随時フィード（警報・注意報が随時掲載される）
 FEED_EXTRA = 'https://www.data.jma.go.jp/developer/xml/feed/extra.xml'
+# 定時フィード（全要素の集約定時通報 VPWS50 が約10分ごとに掲載される）
+FEED_REGULAR = 'https://www.data.jma.go.jp/developer/xml/feed/regular.xml'
+# VPWS50（集約通報）は気象庁本庁が全国分を発表するため area=010000
+AGGREGATE_TYPE = 'VPWS50'
+AGGREGATE_AREA = '010000'
+AGGREGATE_FLAGS = ('thunder', 'dry', 'heavyRain',
+                   'landslide', 'landslideAdvisory', 'storm')
 
 # Open-Meteo（気象数値）
 WEATHER = (
@@ -244,32 +251,68 @@ def select_latest_urls(feed_text):
     return latest
 
 
+def select_aggregate_url(feed_text):
+    """定時フィードから最新の VPWS50（集約通報, area=010000）URLを返す。"""
+    best = None
+    for ts, mtype, area in DATA_URL_RE.findall(feed_text):
+        if mtype != AGGREGATE_TYPE or area != AGGREGATE_AREA:
+            continue
+        if best is None or ts > best[0]:
+            best = (ts, (
+                'https://www.data.jma.go.jp/developer/xml/data/'
+                f'{ts}_0_{mtype}_{area}.xml'
+            ))
+    return best
+
+
 def fetch_warnings_from_xml(previous_warnings):
-    """気象庁XMLフィードから警報・注意報を取得し、フラグ辞書とデバッグを返す。"""
+    """気象庁XMLから警報・注意報を取得。VPWS50(集約)を主に、個別電文で補強。"""
     result = dict(DEFAULT_WARNINGS)
-    # 前回値を土台にする（未掲載の種別は維持するため）
     for k in result:
         if k in previous_warnings:
             result[k] = bool(previous_warnings[k])
 
-    debug = {'reports': [], 'error': None}
+    debug = {'reports': [], 'error': None, 'aggregate': None}
+    got_aggregate = False
 
-    feed_text = get_text(FEED_EXTRA)
-    latest = select_latest_urls(feed_text)
+    # --- (A) 主データ: VPWS50 集約通報（regular.xml）---
+    try:
+        reg_text = get_text(FEED_REGULAR)
+        agg = select_aggregate_url(reg_text)
+        if agg:
+            ts, url = agg
+            xml_bytes = get_bytes(url)
+            flags, names, report_dt = parse_warning_doc(
+                xml_bytes, AGGREGATE_FLAGS
+            )
+            for f in AGGREGATE_FLAGS:
+                result[f] = False
+            for f in flags:
+                result[f] = True
+            got_aggregate = True
+            debug['aggregate'] = {
+                'type': AGGREGATE_TYPE,
+                'reportDateTime': report_dt,
+                'activeNames': names,
+            }
+    except Exception as e:  # noqa: BLE001
+        debug['aggregate'] = {'error': type(e).__name__}
 
-    if not latest:
-        # 神奈川県の対象電文がフィード内に無い＝直近更新なし。前回値を維持。
-        debug['note'] = 'no_kanagawa_entries_in_feed'
-        return result, debug
+    # --- (B) 補強: 神奈川県の個別電文（extra.xml）---
+    try:
+        feed_text = get_text(FEED_EXTRA)
+        latest = select_latest_urls(feed_text)
+    except Exception as e:  # noqa: BLE001
+        latest = {}
+        debug['error'] = type(e).__name__
 
-    # 今回取得できた種別が「担当」するフラグ集合（＝今回上書き対象）
-    covered = set()
-    for mtype in latest:
-        covered |= set(CATEGORY_TYPES[mtype])
-
-    # 上書き対象フラグはいったん False にしてから、解析結果で True を立てる
-    for f in covered:
-        result[f] = False
+    # 集約が取れなかった場合のみ、個別電文の担当フラグをリセット
+    if not got_aggregate and latest:
+        covered = set()
+        for mtype in latest:
+            covered |= set(CATEGORY_TYPES[mtype])
+        for f in covered:
+            result[f] = False
 
     for mtype, (ts, url) in sorted(latest.items()):
         allowed = CATEGORY_TYPES[mtype]
@@ -281,6 +324,9 @@ def fetch_warnings_from_xml(previous_warnings):
             )
             continue
         flags, names, report_dt = parse_warning_doc(xml_bytes, allowed)
+        # 個別電文はその種別の最新スナップショット。担当フラグを確定
+        for f in allowed:
+            result[f] = False
         for f in flags:
             result[f] = True
         debug['reports'].append({
@@ -288,6 +334,13 @@ def fetch_warnings_from_xml(previous_warnings):
             'reportDateTime': report_dt,
             'activeNames': names,
         })
+
+    if not got_aggregate and not latest:
+        debug['note'] = 'no_data_available_keep_previous'
+        # 取得不能時は前回値を維持
+        for k in result:
+            if k in previous_warnings:
+                result[k] = bool(previous_warnings[k])
 
     return result, debug
 
