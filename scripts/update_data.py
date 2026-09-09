@@ -138,14 +138,13 @@ def parse_warnings(jma_json):
 
 
 
-def collect_debug(jma_json):
-    """対象エリアに実際に入っている、解除されていない全コードを地域別に返す。"""
-    result = {}
+def collect_all(jma_json):
+    """JSON内の、解除されていない警報を持つ全エリアのコードを返す。
+    どのエリアコードに何の警報コードが入っているかを一覧化する。"""
+    out = {}
     for area_type in jma_json.get('areaTypes', []):
         for area in area_type.get('areas', []):
             acode = area.get('code')
-            if acode not in TARGET_AREA_CODES:
-                continue
             active = []
             for w in area.get('warnings', []):
                 code = w.get('code')
@@ -153,8 +152,8 @@ def collect_debug(jma_json):
                 if code and status not in INACTIVE_STATUS:
                     active.append(code)
             if active:
-                result[acode] = active
-    return result
+                out[acode] = active
+    return out
 
 
 def main():
@@ -168,12 +167,12 @@ def main():
     i = h['time'].index(key) if key in h['time'] else 0
 
     warnings = dict(DEFAULT_WARNINGS)
-    debug = {}
+    allAreas = {}
     err = None
     try:
         jma = get(JMA)
         warnings = parse_warnings(jma)
-        debug = collect_debug(jma)
+        allAreas = collect_all(jma)
     except Exception as e:
         err = type(e).__name__
         print('JMA fetch failed:', err, e)
@@ -194,7 +193,7 @@ def main():
         },
         'warnings': warnings,
         'warningFetchError': err,
-        'activeCodesDebug': debug,
+        'allActiveAreasDebug': allAreas,
     }
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
