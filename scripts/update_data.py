@@ -30,8 +30,10 @@ LAT = 35.474917
 LON = 139.549250
 OUT = Path(__file__).resolve().parents[1] / 'data' / 'current.json'
 
-# 横浜市旭区の市区町村コード（見つからなければ 横浜市→神奈川東部 にフォールバック）
-TARGET_AREA_CODES = ('1420100', '1410000', '140010')
+# 鶴ヶ峰は横浜市の警報・注意報を使用
+# 1410000：横浜市
+# 140010 ：神奈川県東部（横浜市が見つからない場合の予備）
+TARGET_AREA_CODES = ('1410000', '140010')
 
 WEATHER = (
     'https://api.open-meteo.com/v1/forecast'
