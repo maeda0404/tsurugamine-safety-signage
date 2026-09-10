@@ -279,13 +279,20 @@
       rules.push('storm');
     }
 
-    if (warnings.thunder) {
-      // 正式な雷注意報（毎時00分から10分に全画面表示）
-      rules.push('thunder');
-    } else if (warnings.thunderForecast) {
-      // 正式な雷注意報が無いときのみ、予報ベースの雷を補助表示（00〜10分）
-      rules.push('thunderForecast');
-    }
+    const minute = new Date().getMinutes();
+
+if (warnings.thunder) {
+  // 正式な雷注意報（毎時00分～10分のみ表示）
+  if (minute <= 10) {
+    rules.push('thunder');
+  }
+} else if (warnings.thunderForecast) {
+  // 正式な雷注意報が無いときのみ、予報ベースの雷を00～10分表示
+  if (minute <= 10) {
+    rules.push('thunderForecast');
+  }
+}
+
 
     if (
       !stormActive &&
