@@ -279,20 +279,14 @@
       rules.push('storm');
     }
 
-    const minute = new Date().getMinutes();
-
+// 正式な雷注意報は常に「発表中」として判定する
 if (warnings.thunder) {
-  // 正式な雷注意報（毎時00分～10分のみ表示）
-  if (minute <= 10) {
-    rules.push('thunder');
-  }
+  rules.push('thunder');
 } else if (warnings.thunderForecast) {
-  // 正式な雷注意報が無いときのみ、予報ベースの雷を00～10分表示
-  if (minute <= 10) {
-    rules.push('thunderForecast');
-  }
+  // 予報ベースの雷は補助表示として判定する
+  rules.push('thunderForecast');
 }
-
+    
 
     if (
       !stormActive &&
