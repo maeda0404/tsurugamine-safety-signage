@@ -177,3 +177,21 @@ footer p{
   font-size:clamp(34px, 3vw, 44px);
   letter-spacing:-0.035em;
 }
+
+/* 4:3 signage: improve long-distance readability */
+.metrics span{
+  font-size:31px;
+  line-height:1.12;
+}
+.metrics strong,
+.metrics article strong{
+  font-size:54px;
+  line-height:1;
+  margin-top:14px;
+  letter-spacing:-0.025em;
+}
+/* Current precipitation needs extra room for values such as 10.0 mm/h */
+.metrics article:nth-child(2) strong{
+  font-size:48px;
+  letter-spacing:-0.045em;
+}
