@@ -466,17 +466,19 @@ if (warnings.thunder) {
 
   function fitToScreen() {
     const signage = $('signage');
+    const baseWidth = 1440;
+    const baseHeight = 1080;
     const scale = Math.min(
-      window.innerWidth / 1920,
-      window.innerHeight / 1080
+      window.innerWidth / baseWidth,
+      window.innerHeight / baseHeight
     );
 
     signage.style.transform = `scale(${scale})`;
     signage.style.position = 'absolute';
     signage.style.left =
-      `${Math.max(0, (window.innerWidth - 1920 * scale) / 2)}px`;
+      `${Math.max(0, (window.innerWidth - baseWidth * scale) / 2)}px`;
     signage.style.top =
-      `${Math.max(0, (window.innerHeight - 1080 * scale) / 2)}px`;
+      `${Math.max(0, (window.innerHeight - baseHeight * scale) / 2)}px`;
   }
 
   function tick() {
