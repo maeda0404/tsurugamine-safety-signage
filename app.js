@@ -1,7 +1,9 @@
 'use strict';
 
 (() => {
+
   const C = window.SIGNAGE_CONFIG;
+
   const $ = (id) => document.getElementById(id);
 
   // 鶴ヶ峰の直近データを端末内に保存
@@ -37,13 +39,18 @@
     landslideAdvisory: ['./images/landslide-advisory.png', '土砂災害注意報'],
     storm: ['./images/storm.png', '暴風警報'],
     sunset: ['./images/sunset.png', '日没注意'],
-    strongWind: ['./images/strong-wind.png', '強風注意'],
+    strongWind: ['./images/strong-wind.png', '強風注意報'],
     thunder: ['./images/thunder.png', '雷注意報'],
+
     // 予報文ベースの雷（正式な雷注意報ではない補助表示）
-    thunderForecast: ['./images/thunder-forecast.png', '雷予報 発表中']
+    thunderForecast: [
+      './images/thunder-forecast.png',
+      '雷予報 発表中'
+    ]
   };
 
   // 時刻に関係なく即時・全画面表示する警報級ルール。
+  // strongWind は注意報なので従来どおり毎時00分～10分の表示対象。
   // thunderForecast は予報ベースの補助表示のため、ここには含めない。
   const IMMEDIATE_RULES = [
     'landslide',
@@ -108,6 +115,7 @@
 
   function resetNetworkStyle() {
     const network = $('network');
+
     network.style.color = '';
     network.style.backgroundColor = '';
     network.style.borderColor = '';
@@ -118,6 +126,7 @@
     const stale = $('stale');
 
     resetNetworkStyle();
+
     network.textContent = '● 通信正常';
     network.className = 'ok';
 
@@ -133,27 +142,35 @@
 
     network.textContent = '● 更新遅延';
     network.className = 'delay';
+
     network.style.color = '#8a5700';
     network.style.backgroundColor = '#fff3cd';
     network.style.borderColor = '#d39e00';
 
     stale.hidden = false;
+
     stale.textContent =
-      message || 'データ更新が遅延しています。取得済みの気象情報を表示しています';
+      message ||
+      'データ更新が遅延しています。取得済みの気象情報を表示しています';
+
     stale.style.backgroundColor = '#b26a00';
     stale.style.color = '#ffffff';
   }
 
-  function showNetworkFailure(message = '最新情報を取得できていません') {
+  function showNetworkFailure(
+    message = '最新情報を取得できていません'
+  ) {
     const network = $('network');
     const stale = $('stale');
 
     resetNetworkStyle();
+
     network.textContent = '● 通信失敗';
     network.className = 'ng';
 
     stale.hidden = false;
     stale.textContent = message;
+
     stale.style.backgroundColor = '';
     stale.style.color = '';
   }
@@ -163,15 +180,24 @@
 
     $('temperature').textContent = '--';
     $('weatherLabel').textContent = '情報取得中';
+
     $('rainProbability').textContent = '--%';
     $('precipitation').textContent = '-- mm/h';
     $('windSpeed').textContent = '-- m/s';
     $('minTemperature').textContent = '--℃';
     $('sunsetTime').textContent = '--:--';
+
     $('generatedAt').textContent = '--';
-    $('activeAlerts').textContent = '該当情報を確認しています';
-    $('statusCard').className = 'status-card normal';
-    $('statusText').textContent = '確認中';
+
+    $('activeAlerts').textContent =
+      '該当情報を確認しています';
+
+    $('statusCard').className =
+      'status-card normal';
+
+    $('statusText').textContent =
+      '確認中';
+
     $('alertOverlay').hidden = true;
 
     imageIndex = 0;
@@ -179,7 +205,8 @@
   }
 
   function getDataFreshness(generatedAt) {
-    const generatedTime = new Date(generatedAt).getTime();
+    const generatedTime =
+      new Date(generatedAt).getTime();
 
     if (!Number.isFinite(generatedTime)) {
       return {
@@ -189,7 +216,8 @@
       };
     }
 
-    const ageMs = Math.max(0, Date.now() - generatedTime);
+    const ageMs =
+      Math.max(0, Date.now() - generatedTime);
 
     if (ageMs >= THREE_HOURS_MS) {
       return {
@@ -203,7 +231,8 @@
       return {
         status: 'delay',
         ageMs,
-        message: 'データ更新が遅延しています。取得済みの気象情報を表示しています'
+        message:
+          'データ更新が遅延しています。取得済みの気象情報を表示しています'
       };
     }
 
@@ -219,18 +248,27 @@
       candidate &&
       candidate.weather &&
       candidate.generatedAt &&
-      Number.isFinite(new Date(candidate.generatedAt).getTime())
+      Number.isFinite(
+        new Date(candidate.generatedAt).getTime()
+      )
     );
   }
 
-  function showStoredDataStatus(candidate, fetchFailed = false) {
-    const freshness = getDataFreshness(candidate.generatedAt);
-    const generatedText = formatDateTime(candidate.generatedAt);
+  function showStoredDataStatus(
+    candidate,
+    fetchFailed = false
+  ) {
+    const freshness =
+      getDataFreshness(candidate.generatedAt);
+
+    const generatedText =
+      formatDateTime(candidate.generatedAt);
 
     if (freshness.status === 'failure') {
       showNetworkFailure(
         `通信失敗：${generatedText}時点の情報を表示中`
       );
+
       return;
     }
 
@@ -238,6 +276,7 @@
       showNetworkDelay(
         `更新遅延：${generatedText}時点の情報を表示中`
       );
+
       return;
     }
 
@@ -245,6 +284,7 @@
       showNetworkFailure(
         `最新情報の取得に一時的に失敗しました。${generatedText}時点の情報を表示中`
       );
+
       return;
     }
 
@@ -252,69 +292,106 @@
   }
 
   function getCurrentRules() {
-    if (!data) return [];
+    if (!data) {
+      return [];
+    }
 
     const weather = data.weather;
     const warnings = data.warnings || {};
     const rules = [];
 
+    // 土砂災害
     if (warnings.landslide) {
       rules.push('landslide');
     } else if (warnings.landslideAdvisory) {
       rules.push('landslideAdvisory');
     }
 
+    // 大雨
     if (
       warnings.heavyRain ||
-      weather.precipitation >= C.thresholds.heavyRainPerHour
+      weather.precipitation >=
+        C.thresholds.heavyRainPerHour
     ) {
       rules.push('heavyRain');
     }
 
+    // 暴風警報
+    // 気象庁の暴風警報、または実測風速が暴風閾値以上
     const stormActive =
-      warnings.storm ||
-      weather.windSpeed >= C.thresholds.stormWind;
+      Boolean(warnings.storm) ||
+      Number(weather.windSpeed) >=
+        C.thresholds.stormWind;
 
     if (stormActive) {
       rules.push('storm');
     }
 
-// 正式な雷注意報は常に「発表中」として判定する
-if (warnings.thunder) {
-  rules.push('thunder');
-} else if (warnings.thunderForecast) {
-  // 予報ベースの雷は補助表示として判定する
-  rules.push('thunderForecast');
-}
-    
+    // 雷
+    // 正式な雷注意報を優先
+    if (warnings.thunder) {
+      rules.push('thunder');
+    } else if (warnings.thunderForecast) {
+      // 正式な雷注意報がない場合のみ予報ベースを補助表示
+      rules.push('thunderForecast');
+    }
+
+    // 強風注意報
+    //
+    // 気象庁の横浜市北部「強風注意報」が出ている場合
+    // warnings.strongWind === true で判定する。
+    //
+    // 従来の実測風速による判定も残す。
+    //
+    // 暴風警報が有効な場合はstormを優先し、
+    // strongWindは重複表示しない。
+    const strongWindActive =
+      Boolean(warnings.strongWind) ||
+      Number(weather.windSpeed) >=
+        C.thresholds.strongWind;
 
     if (
       !stormActive &&
-      weather.windSpeed >= C.thresholds.strongWind
+      strongWindActive
     ) {
       rules.push('strongWind');
     }
 
-    if (weather.minTemperature <= C.thresholds.lowTemperature) {
+    // 低温
+    if (
+      weather.minTemperature <=
+        C.thresholds.lowTemperature
+    ) {
       rules.push('lowTemperature');
     }
 
+    // 乾燥注意報
     if (warnings.dry) {
       rules.push('dry');
     }
 
-    if (weather.rainProbability >= C.thresholds.rainProbability) {
+    // 降水確率
+    if (
+      weather.rainProbability >=
+        C.thresholds.rainProbability
+    ) {
       rules.push('rainProbability');
     }
 
+    // 日没
     const now = new Date();
     const sunset = new Date(weather.sunset);
-    const millisecondsUntilSunset = sunset.getTime() - now.getTime();
+
+    const millisecondsUntilSunset =
+      sunset.getTime() -
+      now.getTime();
 
     if (
       Number.isFinite(millisecondsUntilSunset) &&
-      millisecondsUntilSunset <= 30 * 60 * 1000 &&
-      millisecondsUntilSunset >= -10 * 60 * 1000
+      millisecondsUntilSunset <=
+        30 * 60 * 1000 &&
+      millisecondsUntilSunset >=
+        -10 * 60 * 1000
     ) {
       rules.push('sunset');
     }
@@ -323,21 +400,27 @@ if (warnings.thunder) {
   }
 
   function getActiveRules() {
-    const currentRules = getCurrentRules();
+    const currentRules =
+      getCurrentRules();
 
     if (currentRules.length === 0) {
       return [];
     }
 
-    const immediateRules = currentRules.filter((key) =>
-      IMMEDIATE_RULES.includes(key)
-    );
+    // 警報級は即時表示
+    const immediateRules =
+      currentRules.filter((key) =>
+        IMMEDIATE_RULES.includes(key)
+      );
 
     if (immediateRules.length > 0) {
       return immediateRules;
     }
 
-    const minute = Number(getJapanTimeParts(new Date()).minute);
+    // 注意情報は毎時指定時間内のみ全画面表示
+    const minute = Number(
+      getJapanTimeParts(new Date()).minute
+    );
 
     if (
       minute >= C.scheduledStartMinute &&
@@ -350,51 +433,75 @@ if (warnings.thunder) {
   }
 
   function render() {
-    if (!data) return;
+    if (!data) {
+      return;
+    }
 
     const weather = data.weather;
-    const activeRules = getCurrentRules();
+    const activeRules =
+      getCurrentRules();
 
-    $('temperature').textContent = Number(weather.temperature).toFixed(1);
-    $('weatherLabel').textContent = getWeatherName(weather.weatherCode);
+    $('temperature').textContent =
+      Number(weather.temperature).toFixed(1);
+
+    $('weatherLabel').textContent =
+      getWeatherName(weather.weatherCode);
+
     $('rainProbability').textContent =
       `${Math.round(weather.rainProbability)}%`;
+
     $('precipitation').textContent =
       `${Number(weather.precipitation).toFixed(1)} mm/h`;
+
     $('windSpeed').textContent =
       `${Number(weather.windSpeed).toFixed(1)} m/s`;
+
     $('minTemperature').textContent =
       `${Number(weather.minTemperature).toFixed(1)}℃`;
+
     $('sunsetTime').textContent =
       new Intl.DateTimeFormat('ja-JP', {
         timeZone: 'Asia/Tokyo',
         hour: '2-digit',
         minute: '2-digit'
-      }).format(new Date(weather.sunset));
-    $('generatedAt').textContent = formatDateTime(data.generatedAt);
+      }).format(
+        new Date(weather.sunset)
+      );
 
-    $('activeAlerts').textContent = activeRules.length
-      ? activeRules.map((key) => IMAGES[key][1]).join(' ／ ')
-      : '現在、サイネージ表示対象の注意情報はありません';
+    $('generatedAt').textContent =
+      formatDateTime(data.generatedAt);
 
-    const hasDanger = activeRules.some((key) =>
-      DANGER_RULES.includes(key)
-    );
+    $('activeAlerts').textContent =
+      activeRules.length
+        ? activeRules
+            .map((key) => IMAGES[key][1])
+            .join(' ／ ')
+        : '現在、サイネージ表示対象の注意情報はありません';
 
-    $('statusCard').className = hasDanger
-      ? 'status-card danger'
-      : activeRules.length
-        ? 'status-card caution'
-        : 'status-card normal';
+    const hasDanger =
+      activeRules.some((key) =>
+        DANGER_RULES.includes(key)
+      );
 
-    $('statusText').textContent = activeRules.length
-      ? '注意情報あり'
-      : '通常';
+    $('statusCard').className =
+      hasDanger
+        ? 'status-card danger'
+        : activeRules.length
+          ? 'status-card caution'
+          : 'status-card normal';
+
+    $('statusText').textContent =
+      activeRules.length
+        ? '注意情報あり'
+        : '通常';
   }
 
   function renderOverlay() {
-    const queue = getActiveRules();
-    const overlay = $('alertOverlay');
+    const queue =
+      getActiveRules();
+
+    const overlay =
+      $('alertOverlay');
 
     if (queue.length === 0) {
       overlay.hidden = true;
@@ -402,105 +509,218 @@ if (warnings.thunder) {
       return;
     }
 
-    imageIndex %= queue.length;
+    imageIndex %=
+      queue.length;
 
-    if (Date.now() - lastRotationTime >= C.rotationMs) {
-      imageIndex = (imageIndex + 1) % queue.length;
-      lastRotationTime = Date.now();
+    if (
+      Date.now() - lastRotationTime >=
+      C.rotationMs
+    ) {
+      imageIndex =
+        (imageIndex + 1) %
+        queue.length;
+
+      lastRotationTime =
+        Date.now();
     }
 
-    const key = queue[imageIndex % queue.length];
+    const key =
+      queue[
+        imageIndex %
+        queue.length
+      ];
 
-    $('alertImage').src = IMAGES[key][0];
-    $('alertImage').alt = IMAGES[key][1];
-    $('overlayTitle').textContent = IMAGES[key][1];
-    $('overlayCounter').textContent = queue.length > 1
-      ? `${(imageIndex % queue.length) + 1}/${queue.length}`
-      : '';
+    $('alertImage').src =
+      IMAGES[key][0];
+
+    $('alertImage').alt =
+      IMAGES[key][1];
+
+    $('overlayTitle').textContent =
+      IMAGES[key][1];
+
+    $('overlayCounter').textContent =
+      queue.length > 1
+        ? `${(imageIndex % queue.length) + 1}/${queue.length}`
+        : '';
 
     overlay.hidden = false;
   }
 
   async function refreshData() {
     try {
-      const response = await fetch(
-        `${C.dataUrl}?t=${Date.now()}`,
-        { cache: 'no-store' }
-      );
+      const response =
+        await fetch(
+          `${C.dataUrl}?t=${Date.now()}`,
+          {
+            cache: 'no-store'
+          }
+        );
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        throw new Error(
+          `HTTP ${response.status}`
+        );
       }
 
-      const nextData = await response.json();
+      const nextData =
+        await response.json();
 
       if (!isUsableData(nextData)) {
-        throw new Error('気象データの内容を確認できません');
+        throw new Error(
+          '気象データの内容を確認できません'
+        );
       }
 
       data = nextData;
-      saveCache(nextData);
-      render();
-      showStoredDataStatus(nextData, false);
 
-      const freshness = getDataFreshness(nextData.generatedAt);
-      if (freshness.status !== 'normal') {
-        console.warn(freshness.message);
+      saveCache(nextData);
+
+      render();
+
+      showStoredDataStatus(
+        nextData,
+        false
+      );
+
+      const freshness =
+        getDataFreshness(
+          nextData.generatedAt
+        );
+
+      if (
+        freshness.status !==
+        'normal'
+      ) {
+        console.warn(
+          freshness.message
+        );
       }
+
     } catch (error) {
       console.error(error);
 
-      const cachedData = isUsableData(data) ? data : loadCache();
+      const cachedData =
+        isUsableData(data)
+          ? data
+          : loadCache();
 
-      if (isUsableData(cachedData)) {
+      if (
+        isUsableData(cachedData)
+      ) {
         data = cachedData;
+
         render();
-        showStoredDataStatus(cachedData, true);
+
+        showStoredDataStatus(
+          cachedData,
+          true
+        );
+
         return;
       }
 
       clearWeatherDisplay();
-      showNetworkFailure('最新情報を取得できていません');
+
+      showNetworkFailure(
+        '最新情報を取得できていません'
+      );
     }
   }
 
   function fitToScreen() {
-    const signage = $('signage');
-    const baseWidth = 1440;
-    const baseHeight = 1080;
-    const scale = Math.min(
-      window.innerWidth / baseWidth,
-      window.innerHeight / baseHeight
-    );
+    const signage =
+      $('signage');
 
-    signage.style.transform = `scale(${scale})`;
-    signage.style.position = 'absolute';
+    const baseWidth =
+      1440;
+
+    const baseHeight =
+      1080;
+
+    const scale =
+      Math.min(
+        window.innerWidth /
+          baseWidth,
+        window.innerHeight /
+          baseHeight
+      );
+
+    signage.style.transform =
+      `scale(${scale})`;
+
+    signage.style.position =
+      'absolute';
+
     signage.style.left =
-      `${Math.max(0, (window.innerWidth - baseWidth * scale) / 2)}px`;
+      `${Math.max(
+        0,
+        (
+          window.innerWidth -
+          baseWidth * scale
+        ) / 2
+      )}px`;
+
     signage.style.top =
-      `${Math.max(0, (window.innerHeight - baseHeight * scale) / 2)}px`;
+      `${Math.max(
+        0,
+        (
+          window.innerHeight -
+          baseHeight * scale
+        ) / 2
+      )}px`;
   }
 
   function tick() {
-    $('clock').textContent = formatDateTime(new Date());
+    $('clock').textContent =
+      formatDateTime(
+        new Date()
+      );
+
     render();
+
     renderOverlay();
   }
 
-  window.addEventListener('resize', fitToScreen);
+  window.addEventListener(
+    'resize',
+    fitToScreen
+  );
 
   fitToScreen();
 
-  const cachedData = loadCache();
-  if (isUsableData(cachedData)) {
+  // 保存済みデータがあれば起動直後から表示
+  const cachedData =
+    loadCache();
+
+  if (
+    isUsableData(cachedData)
+  ) {
     data = cachedData;
+
     render();
-    showStoredDataStatus(cachedData, false);
+
+    showStoredDataStatus(
+      cachedData,
+      false
+    );
   }
 
+  // 最新データ取得
   refreshData();
+
   tick();
 
-  window.setInterval(tick, 1000);
-  window.setInterval(refreshData, C.refreshMs);
+  // 画面表示を1秒ごとに更新
+  window.setInterval(
+    tick,
+    1000
+  );
+
+  // 気象データを設定間隔で再取得
+  window.setInterval(
+    refreshData,
+    C.refreshMs
+  );
+
 })();
