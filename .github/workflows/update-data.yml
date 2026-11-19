@@ -1,32 +1,64 @@
 name: Update safety weather data
+
 on:
   schedule:
+    # 毎時 03分・33分に実行（GitHub ActionsのcronはUTC）
     - cron: '3,33 * * * *'
+
+  # GitHub上から手動実行できるようにする
   workflow_dispatch:
+
 permissions:
   contents: write
+
 concurrency:
   group: update-safety-weather
   cancel-in-progress: true
+
 jobs:
   update:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      # 1. リポジトリを取得
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Python 3.12を準備
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      # 3. 気象データを取得してcurrent.jsonを更新
       - name: Fetch public weather data
         run: python scripts/update_data.py
-      - name: Commit changed data
+
+      # 4. current.jsonに変更があればGitHubへ反映
+      - name: Commit and push changed data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
           git add data/current.json
-          git commit -m "Update safety weather data" || exit 0
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Update safety weather data"
+
           for i in 1 2 3 4 5; do
-            git pull --rebase origin main && git push && break
-            echo "retry $i"
+            if git pull --rebase origin main && git push origin main; then
+              echo "Push succeeded."
+              exit 0
+            fi
+
+            echo "Push failed. Retry $i/5"
             sleep 3
           done
+
+          echo "Push failed after 5 attempts."
+          exit 1
